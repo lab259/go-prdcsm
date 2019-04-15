@@ -10,3 +10,7 @@ type ChannelProducer struct {
 func (producer *ChannelProducer) Produce() interface{} {
 	return <-producer.Ch
 }
+
+func (producer *ChannelProducer) Stop() {
+	close(producer.Ch)
+}

@@ -7,4 +7,7 @@ type Producer interface {
 	// Produce returns  the data to be processed. It shall return `nil` if there
 	// is no.
 	Produce() interface{}
+
+	// Stop should cancel the process of producing new items.
+	Stop()
 }

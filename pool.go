@@ -92,5 +92,6 @@ func (pool *Pool) Stop() {
 	pool.running = false
 	pool.channelClosed = true
 	close(pool.consumerPool)
+	pool.Producer.Stop()
 	pool.Wait()
 }
