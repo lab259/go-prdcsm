@@ -13,11 +13,12 @@ import (
 // For receiving the data for processing, a `Producer` interface is used. Check
 // its documentation for more information.
 type Pool struct {
-	Consumer     Consumer
-	Producer     Producer
-	consumerPool chan Consumer
-	running      bool
-	waitGroup    sync.WaitGroup
+	Consumer      Consumer
+	Producer      Producer
+	consumerPool  chan Consumer
+	channelClosed bool
+	running       bool
+	waitGroup     sync.WaitGroup
 }
 
 // Run starts the worker pool process.
@@ -32,7 +33,11 @@ type Pool struct {
 // worker to the channel.
 func (pool *Pool) Run(count int) {
 	pool.consumerPool = make(chan Consumer, count)
-	defer close(pool.consumerPool)
+	defer func() {
+		if !pool.channelClosed {
+			close(pool.consumerPool)
+		}
+	}()
 
 	pool.waitGroup.Add(1)
 	defer pool.waitGroup.Done()
@@ -54,7 +59,10 @@ func (pool *Pool) Run(count int) {
 		}
 
 		// Grabs a worker from the channel pool
-		worker := <-pool.consumerPool
+		worker, more := <-pool.consumerPool
+		if !more { // No more workers to process.
+			break
+		}
 		go worker(data)
 	}
 }
@@ -63,8 +71,10 @@ func (pool *Pool) runWorker(data interface{}) {
 	pool.waitGroup.Add(1)
 	defer func() {
 		pool.waitGroup.Done()
-		// Returns the "worker" to the pool
-		pool.consumerPool <- pool.runWorker
+		if pool.running {
+			// Returns the "worker" to the pool
+			pool.consumerPool <- pool.runWorker
+		}
 	}()
 	pool.Consumer(data)
 }
@@ -80,5 +90,7 @@ func (pool *Pool) Wait() {
 // pool and WAIT the workers stop by themselves.
 func (pool *Pool) Stop() {
 	pool.running = false
+	pool.channelClosed = true
+	close(pool.consumerPool)
 	pool.Wait()
 }

@@ -36,5 +36,10 @@ func main() {
 		}
 	}()
 
+	go func() {
+		time.Sleep(time.Second * 3)
+		pool.Stop()
+	}()
+
 	pool.Run(4)
 }
