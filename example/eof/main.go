@@ -29,18 +29,16 @@ func main() {
 		Producer: producer,
 	}
 
-	producerRunning := true
 	go func() {
-		for producerRunning {
+		s := time.Now()
+		for {
+			if time.Since(s) > time.Second {
+				producer.Ch <- prdcsm.EOF
+				return
+			}
 			producer.Ch <- rand.Int()
 			time.Sleep(time.Millisecond * 10)
 		}
-	}()
-
-	go func() {
-		time.Sleep(time.Second * 1)
-		producerRunning = false
-		pool.Stop()
 	}()
 
 	pool.Run(4)

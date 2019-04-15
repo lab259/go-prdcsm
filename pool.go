@@ -4,6 +4,10 @@ import (
 	"sync"
 )
 
+// EOF represents the end of the process. If, by any means, a producer returns
+// it to the `Pool`, it will be finished.
+var EOF = &struct{}{}
+
 // `Pool` is the management structure for initializing the working pool.
 //
 // For the proper management of the workers, a channel as big as the desired
@@ -13,12 +17,13 @@ import (
 // For receiving the data for processing, a `Producer` interface is used. Check
 // its documentation for more information.
 type Pool struct {
-	Consumer      Consumer
-	Producer      Producer
-	consumerPool  chan Consumer
-	channelClosed bool
-	running       bool
-	waitGroup     sync.WaitGroup
+	Consumer         Consumer
+	Producer         Producer
+	consumerPool     chan Consumer
+	channelClosed    bool
+	running          bool
+	waitGroupWorkers sync.WaitGroup
+	waitGroup        sync.WaitGroup
 }
 
 // Run starts the worker pool process.
@@ -40,7 +45,10 @@ func (pool *Pool) Run(count int) {
 	}()
 
 	pool.waitGroup.Add(1)
-	defer pool.waitGroup.Done()
+	defer func() {
+		pool.waitGroupWorkers.Wait()
+		pool.waitGroup.Done()
+	}()
 
 	// Initialize the worker pool
 	for i := 0; i < count; i++ {
@@ -58,6 +66,12 @@ func (pool *Pool) Run(count int) {
 			continue
 		}
 
+		// Check the end of the
+		if data == EOF {
+			pool.Producer.Stop()
+			break
+		}
+
 		// Grabs a worker from the channel pool
 		worker, more := <-pool.consumerPool
 		if !more { // No more workers to process.
@@ -68,9 +82,9 @@ func (pool *Pool) Run(count int) {
 }
 
 func (pool *Pool) runWorker(data interface{}) {
-	pool.waitGroup.Add(1)
+	pool.waitGroupWorkers.Add(1)
 	defer func() {
-		pool.waitGroup.Done()
+		pool.waitGroupWorkers.Done()
 		if pool.running {
 			// Returns the "worker" to the pool
 			pool.consumerPool <- pool.runWorker
@@ -81,7 +95,7 @@ func (pool *Pool) runWorker(data interface{}) {
 
 // Waits the pool to stop
 func (pool *Pool) Wait() {
-	pool.waitGroup.Wait()
+	pool.waitGroupWorkers.Wait()
 }
 
 // Stop gracefully finalize the pool and waits all workers to be done.
