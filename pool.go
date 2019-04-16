@@ -77,12 +77,12 @@ func (pool *Pool) Run(count int) {
 		if !more { // No more workers to process.
 			break
 		}
+		pool.waitGroupWorkers.Add(1)
 		go worker(data)
 	}
 }
 
 func (pool *Pool) runWorker(data interface{}) {
-	pool.waitGroupWorkers.Add(1)
 	defer func() {
 		pool.waitGroupWorkers.Done()
 		if pool.running {
