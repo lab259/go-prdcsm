@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 	"sync"
-
-	"github.com/lab259/go-rscsrv"
 )
 
 var (
+	// ErrPoolCancelled means the Pool was cancelled and must be restarted.
 	ErrPoolCancelled = errors.New("pool is already cancelled")
 )
 
@@ -16,8 +15,16 @@ var (
 // it to the `Pool`, it will be finished.
 var EOF = &struct{}{}
 
+// Pool abstracts the behavior of a pool.
 type Pool interface {
-	rscsrv.Startable
+	// Start starts consuming the Producer.
+	Start() error
+	// Stop gracefully finalize the pool and waits all workers to be done.
+	Stop() error
+	// Restart gracefully finalize the current pool and waits all workers to be done. Then
+	// restarts the pool.
+	Restart() error
+	// Wait the pool workers to stop
 	Wait()
 }
 
@@ -47,11 +54,19 @@ type PoolConfig struct {
 func NewPool(config PoolConfig) Pool {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &pool{
-		config: config,
-		ctx:    ctx,
-		cancel: cancel,
+	pool := pool{
+		config:       config,
+		ctx:          ctx,
+		cancel:       cancel,
+		consumerPool: make(chan Consumer, config.Workers),
 	}
+
+	// Initialize the worker pool
+	for i := 0; i < pool.config.Workers; i++ {
+		pool.consumerPool <- pool.runWorker
+	}
+
+	return &pool
 }
 
 // Run starts the worker pool process.
@@ -69,22 +84,13 @@ func (pool *pool) Start() error {
 		return ErrPoolCancelled
 	}
 
-	pool.consumerPool = make(chan Consumer, pool.config.Workers)
 	defer func() {
 		// Ensure context is cancelled
 		pool.cancel()
 
 		// Stop the Producer
 		pool.config.Producer.Stop()
-
-		// Close the consumerPool
-		close(pool.consumerPool)
 	}()
-
-	// Initialize the worker pool
-	for i := 0; i < pool.config.Workers; i++ {
-		pool.consumerPool <- pool.runWorker
-	}
 
 	for {
 		select {
@@ -108,6 +114,7 @@ func (pool *pool) Start() error {
 			if !more { // No more workers to process.
 				return nil
 			}
+
 			pool.waitGroupWorkers.Add(1)
 			go worker(data)
 		}
@@ -117,9 +124,7 @@ func (pool *pool) Start() error {
 func (pool *pool) runWorker(data interface{}) {
 	defer func() {
 		pool.waitGroupWorkers.Done()
-		if pool.ctx.Err() == nil {
-			pool.consumerPool <- pool.runWorker
-		}
+		pool.consumerPool <- pool.runWorker
 	}()
 	pool.config.Consumer(data)
 }

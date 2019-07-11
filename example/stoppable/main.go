@@ -20,14 +20,15 @@ func main() {
 	}
 
 	i := 0
-	pool := prdcsm.Pool{
+	pool := prdcsm.NewPool(prdcsm.PoolConfig{
+		Workers: 4,
 		Consumer: func(data interface{}) {
 			fmt.Println(data, " ")
 			i++
 			time.Sleep(time.Millisecond * 110)
 		},
 		Producer: producer,
-	}
+	})
 
 	producerRunning := true
 	go func() {
@@ -37,9 +38,11 @@ func main() {
 		}
 	}()
 
-	go pool.Run(4)
+	go func() {
+		time.Sleep(time.Second * 1)
+		producerRunning = false
+		pool.Stop()
+	}()
 
-	time.Sleep(time.Second * 1)
-	producerRunning = false
-	pool.Stop()
+	pool.Start()
 }
