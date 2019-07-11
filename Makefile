@@ -12,7 +12,11 @@ run:
 	@test -z "$(EXAMPLE)" && echo "Usage: make [$(EXAMPLES)] run" || go run ./example/$(EXAMPLE)
 
 test:
+ifdef CI
+	@ginkgo -r --randomizeAllSpecs --randomizeSuites --failOnPending --cover --trace --race --progress
+else
 	@ginkgo --failFast ./...
+endif
 
 test-watch:
 	@ginkgo watch --debug -cover -r ./...

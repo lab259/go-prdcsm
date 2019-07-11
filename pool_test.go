@@ -54,6 +54,33 @@ var _ = Describe("Pool", func() {
 		Expect(called.count()).To(Equal(100))
 		close(done)
 	})
+	It("should ignore nils", func(done Done) {
+		var called safecounter
+		producer := NewChannelProducer(50)
+		pool := Pool{
+			Producer: producer,
+			Consumer: func(data interface{}) {
+				called.inc(data.(int))
+			},
+		}
+
+		go pool.Run(4)
+
+		producer.Ch <- 10
+		producer.Ch <- nil
+		producer.Ch <- 20
+		producer.Ch <- nil
+		producer.Ch <- 30
+		producer.Ch <- nil
+		producer.Ch <- 40
+		producer.Ch <- nil
+
+		time.Sleep(50 * time.Millisecond)
+		pool.Stop()
+
+		Expect(called.count()).To(Equal(100))
+		close(done)
+	})
 
 	It("should stop on EOF", func(done Done) {
 		var called safecounter

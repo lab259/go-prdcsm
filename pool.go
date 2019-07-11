@@ -65,7 +65,7 @@ func (pool *Pool) Run(count int) {
 			data := pool.Producer.Produce()
 
 			if data == nil { // Nothing to be done.
-				continue
+				break
 			}
 
 			// Check the end of the
@@ -79,19 +79,16 @@ func (pool *Pool) Run(count int) {
 				return
 			}
 			pool.waitGroupWorkers.Add(1)
-			go worker(data)
+			go func() {
+				worker(data)
+				// pool.consumerPool <- worker
+			}()
 		}
 	}
 }
 
 func (pool *Pool) runWorker(data interface{}) {
-	defer func() {
-		pool.waitGroupWorkers.Done()
-		if pool.ctx.Err() == nil {
-			// Returns the "worker" to the pool
-			pool.consumerPool <- pool.runWorker
-		}
-	}()
+	defer pool.waitGroupWorkers.Done()
 	pool.Consumer(data)
 }
 
@@ -105,7 +102,7 @@ func (pool *Pool) Wait() {
 // BE AWARE: The running workers will not be stopped. The stop will finalize the
 // pool and WAIT the workers stop by themselves.
 func (pool *Pool) Stop() {
-	if pool.ctx != nil && pool.ctx.Err() == nil {
+	if pool.cancel != nil {
 		pool.cancel()
 	}
 	pool.Wait()
