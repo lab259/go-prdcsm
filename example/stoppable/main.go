@@ -37,11 +37,9 @@ func main() {
 		}
 	}()
 
-	go func() {
-		time.Sleep(time.Second * 1)
-		producerRunning = false
-		pool.Stop()
-	}()
+	go pool.Run(4)
 
-	pool.Run(4)
+	time.Sleep(time.Second * 1)
+	producerRunning = false
+	pool.Stop()
 }
