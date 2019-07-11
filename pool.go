@@ -70,14 +70,13 @@ func (pool *Pool) Run(count int) {
 
 			// Check the end of the
 			if data == EOF {
-				pool.Producer.Stop()
-				break
+				return
 			}
 
 			// Grabs a worker from the channel pool
 			worker, more := <-pool.consumerPool
 			if !more { // No more workers to process.
-				break
+				return
 			}
 			pool.waitGroupWorkers.Add(1)
 			go worker(data)
