@@ -34,14 +34,15 @@ var _ = Describe("Pool", func() {
 	It("should run with 4 workers", func(done Done) {
 		var called safecounter
 		producer := NewChannelProducer(50)
-		pool := Pool{
+		pool := NewPool(PoolConfig{
+			Workers:  4,
 			Producer: producer,
 			Consumer: func(data interface{}) {
 				called.inc(data.(int))
 			},
-		}
+		})
 
-		go pool.Run(4)
+		go pool.Start()
 
 		producer.Ch <- 10
 		producer.Ch <- 20
@@ -49,22 +50,43 @@ var _ = Describe("Pool", func() {
 		producer.Ch <- 40
 
 		time.Sleep(50 * time.Millisecond)
-		pool.Stop()
+		Expect(pool.Stop()).To(Succeed())
 
 		Expect(called.count()).To(Equal(100))
 		close(done)
 	})
-	It("should ignore nils", func(done Done) {
+
+	It("should start and stop without any consumer data", func(done Done) {
 		var called safecounter
 		producer := NewChannelProducer(50)
-		pool := Pool{
+		pool := NewPool(PoolConfig{
+			Workers:  4,
 			Producer: producer,
 			Consumer: func(data interface{}) {
 				called.inc(data.(int))
 			},
-		}
+		})
 
-		go pool.Run(4)
+		go pool.Start()
+
+		Expect(pool.Stop()).To(Succeed())
+
+		Expect(called.count()).To(Equal(0))
+		close(done)
+	})
+
+	It("should ignore nils", func(done Done) {
+		var called safecounter
+		producer := NewChannelProducer(50)
+		pool := NewPool(PoolConfig{
+			Workers:  4,
+			Producer: producer,
+			Consumer: func(data interface{}) {
+				called.inc(data.(int))
+			},
+		})
+
+		go pool.Start()
 
 		producer.Ch <- 10
 		producer.Ch <- nil
@@ -76,7 +98,7 @@ var _ = Describe("Pool", func() {
 		producer.Ch <- nil
 
 		time.Sleep(50 * time.Millisecond)
-		pool.Stop()
+		Expect(pool.Stop()).To(Succeed())
 
 		Expect(called.count()).To(Equal(100))
 		close(done)
@@ -85,14 +107,15 @@ var _ = Describe("Pool", func() {
 	It("should stop on EOF", func(done Done) {
 		var called safecounter
 		producer := NewChannelProducer(50)
-		pool := Pool{
+		pool := NewPool(PoolConfig{
+			Workers:  4,
 			Producer: producer,
 			Consumer: func(data interface{}) {
 				called.inc(data.(int))
 			},
-		}
+		})
 
-		go pool.Run(4)
+		go pool.Start()
 
 		producer.Ch <- 10
 		producer.Ch <- 20
@@ -104,6 +127,7 @@ var _ = Describe("Pool", func() {
 
 		Expect(called.count()).To(Equal(100))
 		Expect(producer.Ch).To(BeClosed())
+		Expect(pool.Start()).To(Equal(ErrPoolCancelled))
 		close(done)
 	})
 })

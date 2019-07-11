@@ -2,14 +2,41 @@ package prdcsm
 
 import (
 	"context"
+	"errors"
 	"sync"
+
+	"github.com/lab259/go-rscsrv"
+)
+
+var (
+	ErrPoolCancelled = errors.New("pool is already cancelled")
 )
 
 // EOF represents the end of the process. If, by any means, a producer returns
 // it to the `Pool`, it will be finished.
 var EOF = &struct{}{}
 
-// Pool is the management structure for initializing the working pool.
+type Pool interface {
+	rscsrv.Startable
+	Wait()
+}
+
+type pool struct {
+	config           PoolConfig
+	consumerPool     chan Consumer
+	waitGroupWorkers sync.WaitGroup
+	ctx              context.Context
+	cancel           context.CancelFunc
+}
+
+// PoolConfig specify the needs to create a new Pool.
+type PoolConfig struct {
+	Consumer Consumer
+	Producer Producer
+	Workers  int
+}
+
+// NewPool returns the management structure for initializing the working pool.
 //
 // For the proper management of the workers, a channel as big as the desired
 // workers count is created and populated. Hence, when a consumer is needed, but
@@ -17,13 +44,14 @@ var EOF = &struct{}{}
 //
 // For receiving the data for processing, a `Producer` interface is used. Check
 // its documentation for more information.
-type Pool struct {
-	Consumer         Consumer
-	Producer         Producer
-	consumerPool     chan Consumer
-	waitGroupWorkers sync.WaitGroup
-	ctx              context.Context
-	cancel           context.CancelFunc
+func NewPool(config PoolConfig) Pool {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	return &pool{
+		config: config,
+		ctx:    ctx,
+		cancel: cancel,
+	}
 }
 
 // Run starts the worker pool process.
@@ -36,33 +64,35 @@ type Pool struct {
 // goroutine. The new goroutine is a does not call the worker directly. Instead,
 // the private `runWorker` is called to add the `waitGroup` and return the
 // worker to the channel.
-func (pool *Pool) Run(count int) {
-	pool.ctx, pool.cancel = context.WithCancel(context.Background())
+func (pool *pool) Start() error {
+	if pool.ctx.Err() == context.Canceled {
+		return ErrPoolCancelled
+	}
 
-	pool.consumerPool = make(chan Consumer, count)
+	pool.consumerPool = make(chan Consumer, pool.config.Workers)
 	defer func() {
 		// Ensure context is cancelled
 		pool.cancel()
 
 		// Stop the Producer
-		pool.Producer.Stop()
+		pool.config.Producer.Stop()
 
 		// Close the consumerPool
 		close(pool.consumerPool)
 	}()
 
 	// Initialize the worker pool
-	for i := 0; i < count; i++ {
+	for i := 0; i < pool.config.Workers; i++ {
 		pool.consumerPool <- pool.runWorker
 	}
 
 	for {
 		select {
 		case <-pool.ctx.Done():
-			return
+			return nil
 		default:
 			// Grab data from the producer
-			data := pool.Producer.Produce()
+			data := pool.config.Producer.Produce()
 
 			if data == nil { // Nothing to be done.
 				break
@@ -70,30 +100,32 @@ func (pool *Pool) Run(count int) {
 
 			// Check the end of the
 			if data == EOF {
-				return
+				return nil
 			}
 
 			// Grabs a worker from the channel pool
 			worker, more := <-pool.consumerPool
 			if !more { // No more workers to process.
-				return
+				return nil
 			}
 			pool.waitGroupWorkers.Add(1)
-			go func() {
-				worker(data)
-				// pool.consumerPool <- worker
-			}()
+			go worker(data)
 		}
 	}
 }
 
-func (pool *Pool) runWorker(data interface{}) {
-	defer pool.waitGroupWorkers.Done()
-	pool.Consumer(data)
+func (pool *pool) runWorker(data interface{}) {
+	defer func() {
+		pool.waitGroupWorkers.Done()
+		if pool.ctx.Err() == nil {
+			pool.consumerPool <- pool.runWorker
+		}
+	}()
+	pool.config.Consumer(data)
 }
 
 // Wait the pool to stop
-func (pool *Pool) Wait() {
+func (pool *pool) Wait() {
 	pool.waitGroupWorkers.Wait()
 }
 
@@ -101,9 +133,19 @@ func (pool *Pool) Wait() {
 //
 // BE AWARE: The running workers will not be stopped. The stop will finalize the
 // pool and WAIT the workers stop by themselves.
-func (pool *Pool) Stop() {
-	if pool.cancel != nil {
-		pool.cancel()
-	}
+func (pool *pool) Stop() error {
+	pool.cancel()
 	pool.Wait()
+	return nil
+}
+
+// Restart gracefully finalize the current pool and waits all workers to be done. Then
+// restarts the pool.
+func (pool *pool) Restart() error {
+	if err := pool.Stop(); err != nil {
+		return err
+	}
+
+	pool.ctx, pool.cancel = context.WithCancel(context.Background())
+	return pool.Start()
 }
