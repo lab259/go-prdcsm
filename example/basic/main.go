@@ -15,9 +15,7 @@ func main() {
 	reader := bufio.NewReader(os.Stdin)
 	reader.ReadString('\n')
 
-	producer := &prdcsm.ChannelProducer{
-		Ch: make(chan interface{}, 50),
-	}
+	producer := prdcsm.NewChannelProducer(50)
 
 	i := 0
 	pool := prdcsm.Pool{

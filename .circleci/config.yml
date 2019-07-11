@@ -2,18 +2,22 @@ version: 2
 jobs:
   build:
     docker:
-    - image: circleci/golang:1.9
+      - image: circleci/golang:1.12
 
-    - image: circleci/mysql:5.7.21
-      environment:
-        MYSQL_USER: root
-
-    working_directory: /go/src/github.com/lab259/go-worker-pool
     steps:
       - checkout
-
-      - run: go get -u github.com/onsi/ginkgo/ginkgo
-      - run: make deps-ci
-      - run: make test
+      - restore_cache:
+          keys:
+            - deps-{{ .Branch }}-{{ checksum "go.sum" }}
+            - deps-{{ .Branch }}-
+            - deps-
+      - run: go get github.com/onsi/ginkgo/ginkgo
+      - run: go mod download
       - run: make coverage-ci
       - run: bash <(curl -s https://codecov.io/bash)
+      - save_cache:
+          key: deps-{{ .Branch }}-{{ checksum "go.sum" }}
+          paths:
+            - /go/pkg/mod
+      - store_test_results:
+          path: test-results

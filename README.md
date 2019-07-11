@@ -1,7 +1,6 @@
+# prdcsm [![CircleCI](https://circleci.com/gh/lab259/go-prdcsm.svg?style=shield)](https://circleci.com/gh/lab259/go-prdcsm) [![Go Report Card](https://goreportcard.com/badge/github.com/lab259/go-prdcsm)](https://goreportcard.com/report/github.com/lab259/go-prdcsm) [![Go Doc](https://img.shields.io/badge/godoc-reference-blue.svg?style=shield)](http://godoc.org/github.com/lab259/go-prdcsm) [![Release](https://img.shields.io/github/release/lab259/go-prdcsm.svg?style=shield)](https://github.com/lab259/go-prdcsm/releases/latest)
 
-# prdcsm
-
-prdcsm implements a wrapper for working with producers and cosumers in
+prdcsm implements a wrapper for working with producers and consumers in
 Go.
 
 This is a simple implementation that aims to standardize the behaviors
@@ -32,9 +31,7 @@ func main() {
     reader := bufio.NewReader(os.Stdin)
     reader.ReadString('\n')
 
-    producer := &prdcsm.ChannelProducer{
-        Ch: make(chan interface{}, 50),
-    }
+    producer := prdcsm.NewChannelProducer(50)
 
     i := 0
     pool := prdcsm.Pool{
@@ -46,7 +43,7 @@ func main() {
         Producer: producer,
     }
 
-    
+
     go func() {
         for {
             producer.Ch <- rand.Int()
