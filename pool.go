@@ -106,6 +106,8 @@ func (pool *Pool) Wait() {
 // BE AWARE: The running workers will not be stopped. The stop will finalize the
 // pool and WAIT the workers stop by themselves.
 func (pool *Pool) Stop() {
-	pool.cancel()
+	if pool.ctx != nil && pool.ctx.Err() == nil {
+		pool.cancel()
+	}
 	pool.Wait()
 }
