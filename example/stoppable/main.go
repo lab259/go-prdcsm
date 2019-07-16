@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/lab259/go-prdcsm"
+	"github.com/lab259/go-prdcsm/v2"
 )
 
 func main() {

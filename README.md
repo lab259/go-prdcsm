@@ -9,7 +9,7 @@ consumer and producer applications.
 ## Instalation
 
 ```bash
-$ go get github.com/lab259/go-prdcsm
+$ go get github.com/lab259/go-prdcsm/v2
 ```
 
 ## Usage
@@ -18,7 +18,7 @@ $ go get github.com/lab259/go-prdcsm
 package main
 
 import (
-    "github.com/lab259/go-prdcsm"
+    "github.com/lab259/go-prdcsm/v2"
     "time"
     "math/rand"
     "bufio"
