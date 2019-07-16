@@ -15,7 +15,12 @@ func NewChannelProducer(cap int) *ChannelProducer {
 
 // Produce gets the next element of the channel.
 func (producer *ChannelProducer) Produce() interface{} {
-	return <-producer.Ch
+	select {
+	case got := <-producer.Ch:
+		return got
+	default:
+		return nil
+	}
 }
 
 // Stop stops the producer closing the channel.
