@@ -8,6 +8,11 @@ type Producer interface {
 	// is no.
 	Produce() interface{}
 
-	// Stop should cancel the process of producing new items.
+	// Stop should cancel the process of producing new items keeping the ones
+	// already produced.
 	Stop()
+
+	// Cancel should cancel the process of producing new items discarding the
+	// the messages already produced.
+	Cancel()
 }

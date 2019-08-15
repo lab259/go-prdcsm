@@ -139,6 +139,7 @@ func (pool *pool) Wait() {
 // BE AWARE: The running workers will not be stopped. The stop will finalize the
 // pool and WAIT the workers stop by themselves.
 func (pool *pool) Stop() error {
+	pool.config.Producer.Stop()
 	pool.cancel()
 	pool.Wait()
 	return nil
