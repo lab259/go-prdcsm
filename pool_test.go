@@ -31,7 +31,7 @@ func (i *safecounter) count() int {
 }
 
 var _ = Describe("Pool", func() {
-	It("should run with 4 workers", func(done Done) {
+	It("should run with multiple workers", func(done Done) {
 		var called safecounter
 		producer := NewChannelProducer(50)
 		pool := NewPool(PoolConfig{
@@ -42,21 +42,31 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		go pool.Start()
-
+		producer.Ch <- 10
+		producer.Ch <- 20
+		producer.Ch <- 30
+		producer.Ch <- 40
+		producer.Ch <- 10
+		producer.Ch <- 20
+		producer.Ch <- 30
+		producer.Ch <- 40
 		producer.Ch <- 10
 		producer.Ch <- 20
 		producer.Ch <- 30
 		producer.Ch <- 40
 
-		time.Sleep(50 * time.Millisecond)
-		Expect(pool.Stop()).To(Succeed())
+		go func() {
+			time.Sleep(time.Millisecond * 10)
+			Expect(pool.Stop()).To(Succeed())
+		}()
 
-		Expect(called.count()).To(Equal(100))
+		pool.Start()
+
+		Expect(called.count()).To(Equal(300))
 		close(done)
 	})
 
-	It("should run with 4 workers waiting to be finished", func(done Done) {
+	It("should run with multiple workers with a 30ms task to run", func(done Done) {
 		var called safecounter
 		producer := NewChannelProducer(50)
 		pool := NewPool(PoolConfig{
@@ -68,16 +78,19 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		go pool.Start()
-
 		producer.Ch <- 10
 		producer.Ch <- 20
 		producer.Ch <- 30
 		producer.Ch <- 40
 
-		time.Sleep(time.Millisecond * 10)
+		go func() {
+			time.Sleep(time.Millisecond * 10)
+			Expect(pool.Stop()).To(Succeed())
+		}()
 
-		Expect(pool.Stop()).To(Succeed())
+		pool.Start()
+
+		Expect(called.count()).To(Equal(100))
 		Expect(producer.Ch).To(BeClosed())
 
 		Expect(called.count()).To(Equal(100))
@@ -114,8 +127,6 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		go pool.Start()
-
 		producer.Ch <- 10
 		producer.Ch <- nil
 		producer.Ch <- 20
@@ -125,8 +136,12 @@ var _ = Describe("Pool", func() {
 		producer.Ch <- 40
 		producer.Ch <- nil
 
-		time.Sleep(50 * time.Millisecond)
-		Expect(pool.Stop()).To(Succeed())
+		go func() {
+			time.Sleep(time.Millisecond * 10)
+			Expect(pool.Stop()).To(Succeed())
+		}()
+
+		pool.Start()
 
 		Expect(called.count()).To(Equal(100))
 		close(done)
@@ -149,13 +164,10 @@ var _ = Describe("Pool", func() {
 		producer.Ch <- 40
 		producer.Ch <- EOF
 
-		go pool.Start()
-
-		time.Sleep(50 * time.Millisecond)
+		pool.Start()
 
 		Expect(called.count()).To(Equal(100))
 		Expect(producer.Ch).To(BeClosed())
-		Expect(pool.Start()).To(Equal(ErrPoolCancelled))
 		close(done)
 	})
 
@@ -163,7 +175,7 @@ var _ = Describe("Pool", func() {
 		var called safecounter
 		producer := NewChannelProducer(50)
 		pool := NewPool(PoolConfig{
-			Workers:  4,
+			Workers:  1,
 			Producer: producer,
 			Consumer: func(data interface{}) {
 				called.inc(data.(int))
@@ -176,9 +188,7 @@ var _ = Describe("Pool", func() {
 		producer.Ch <- 30
 		producer.Ch <- 40
 
-		go pool.Start()
-
-		time.Sleep(50 * time.Millisecond)
+		pool.Start()
 
 		Expect(called.count()).To(Equal(30))
 		Expect(producer.Ch).To(HaveLen(2))
@@ -193,12 +203,75 @@ var _ = Describe("Pool", func() {
 	})
 
 	It("should cancel producer discarding enqueued messages", func(done Done) {
-		// 4 messages, each one longing 10 milliseconds.
-		// Give times to run 1 message and cancel the producer.
-		// It should check how many consumers run and if all messages where
-		// flushed from the producer channel.
-		var condM sync.Mutex
-		cond := sync.NewCond(&condM)
+		// # Summary (Not all steps are executed in order in the code. But the logic is this.)
+		// 1. Creates a pool with 1 worker
+		// 2. Enqueue 4 entries
+		// 3. Makes the consumer to process the 1st entry
+		// 4. Cancel the pool
+		// 5. Check if the only 1st entry were processed.
+
+		// This channel will control the Consumer controlling whe it should be
+		// unlocked.
+		consumerChForWaiting := make(chan bool)
+
+		// 1. Creates a pool with 1 worker
+		var called safecounter
+		producer := NewChannelProducer(50)
+		pool := NewPool(PoolConfig{
+			Workers:  1,
+			Producer: producer,
+			Consumer: func(data interface{}) {
+				// This enables the test to control how much time a consumer
+				// will spend on each entry.
+				<-consumerChForWaiting
+
+				called.inc(data.(int))
+			},
+		})
+
+		// 2. Enqueue 4 entries
+		producer.Ch <- 10
+		producer.Ch <- 20
+		producer.Ch <- 30
+		producer.Ch <- 40
+
+		go func() {
+			defer GinkgoRecover()
+
+			// Waits a pool to starts and the worker gets the 1st entry.
+			time.Sleep(time.Millisecond * 10)
+
+			// 4. Cancel the pool
+			// Yes, it is being cancelled before. It happens because the worker
+			// is already running and just waiting for reading the
+			// `consumerChForWaiting`.
+			producer.Cancel()
+
+			// 3. Makes the consumer to process the 1st entry
+			// Since we already have the consumer running (just waiting for
+			// reading from the channel). This write will makes it proceed.
+			consumerChForWaiting <- true // Unlocks the consumer
+		}()
+		pool.Start()
+
+		Expect(called.count()).To(Equal(10))
+		Expect(producer.Ch).To(BeClosed())
+		close(done)
+	})
+
+	It("should interrupt a pool canceling its execution", func(done Done) {
+		// # Summary (Not all steps are executed in order in the code. But the logic is this.)
+		// 1. Creates a pool with 1 worker
+		// 2. Enqueue 4 entries
+		// 3. Process 2 entries
+		// 4. Cancel the pool
+		// 5. Check if the only 1st and 2nd entry were processed.
+
+		// This channel will control the Consumer controlling whe it should be
+		// unlocked.
+		consumerChForWaiting := make(chan bool)
+
+		// 1. Creates a pool with 1 worker
 		var called safecounter
 		producer := NewChannelProducer(50)
 		pool := NewPool(PoolConfig{
@@ -207,16 +280,125 @@ var _ = Describe("Pool", func() {
 			Consumer: func(data interface{}) {
 				called.inc(data.(int))
 
-				cond.L.Lock()
-				defer cond.L.Unlock()
-
-				// This `.Wait` makes the consumer wait for a signal. So, after
-				// canceling the producer we should be able to signal and
-				// guarantee only one consumer is called.
-				cond.Wait()
+				// This enables the test to control how much time a consumer
+				// will spend on each entry.
+				<-consumerChForWaiting
 			},
 		})
 
+		// 2. Enqueue 4 entries
+		producer.Ch <- 10
+		producer.Ch <- 20
+		producer.Ch <- 30
+		producer.Ch <- 40
+
+		go func() {
+			// 3. Process 2 entries (Part 1)
+			// Signal the consumer to proceed.
+			consumerChForWaiting <- true
+
+			// Waits a little for the `select` (inside the pool implementation)
+			// to receive the next entry of the producer. Without the sleep, the
+			// cancel will close the `shutdown` channel from the pool making
+			// the process of the 2nd entry impossible.
+			time.Sleep(time.Millisecond * 10)
+
+			// 4. Cancel the pool
+			pool.Cancel()
+
+			// 3. Process 2 entries (Part 2)
+			// Signal the consumer to proceed again. This will make the worker shutdown.
+			consumerChForWaiting <- true
+		}()
+
+		pool.Start()
+
+		// 5. Check if the only 1st and 2nd entry were processed.
+		Expect(called.count()).To(Equal(30))
+		Expect(producer.Ch).To(BeClosed())
+		close(done)
+	})
+
+	It("should interrupt a pool canceling its execution", func(done Done) {
+		// # Summary (Not all steps are executed in order in the code. But the logic is this.)
+		// 1. Creates a pool with 1 worker
+		// 2. Enqueue 4 entries
+		// 3. Process the 1st entry
+		// 4. Cancel the pool
+		// 5. Check if the none was processed.
+
+		// This channel will control the Consumer controlling whe it should be
+		// unlocked.
+		consumerChForWaiting := make(chan bool)
+
+		// 1. Creates a pool with 1 worker
+		var called safecounter
+		producer := NewChannelProducer(50)
+		pool := NewPool(PoolConfig{
+			Workers:  1,
+			Producer: producer,
+			Consumer: func(data interface{}) {
+				<-consumerChForWaiting
+
+				called.inc(data.(int))
+			},
+		})
+
+		go func() {
+			// 2. Enqueue 4 entries
+			producer.Ch <- 10
+			producer.Ch <- 20
+			producer.Ch <- 30
+			producer.Ch <- 40
+
+			// Waits a little before asking the customer to proceed.
+			time.Sleep(time.Millisecond * 10)
+
+			// 3. Process the 1st entry
+			consumerChForWaiting <- true
+
+			// 4. Cancel the pool
+			pool.Cancel()
+		}()
+
+		pool.Start()
+
+		// 5. Check if the none was processed.
+		Expect(called.count()).To(Equal(10))
+		Expect(producer.Ch).To(BeClosed())
+		close(done)
+	})
+
+	It("should wait the worker to finish after canceling", func(done Done) {
+		// # Summary (Not all steps are executed in order in the code. But the logic is this.)
+		// 1. Creates a pool with 1 worker
+		// 2. Enqueue 4 entries
+		// 3. Process 1 entry and starts processing the 2nd
+		// 4. Cancel the pool
+		// 5. Wait Consumers to finish.
+		// 6. Tells the Consumer to finish processing the 2nd entry.
+		// 7. Check if the 2nd entry was finished.
+
+		// This channel will control the Consumer controlling whe it should be
+		// unlocked.
+		consumerChForWaiting := make(chan bool)
+
+		// 1. Creates a pool with 1 worker
+		var called safecounter
+		producer := NewChannelProducer(50)
+		pool := NewPool(PoolConfig{
+			Workers:  1,
+			Producer: producer,
+			Consumer: func(data interface{}) {
+				// This enables the test to control how much time a consumer
+				// will spend on each entry.
+				<-consumerChForWaiting
+
+				called.inc(data.(int))
+			},
+		})
+
+		// 2. Enqueue 4 entries
 		producer.Ch <- 10
 		producer.Ch <- 20
 		producer.Ch <- 30
@@ -224,19 +406,27 @@ var _ = Describe("Pool", func() {
 
 		go pool.Start()
 
-		// Wait some time to ensure only 1 consumer is being called.
-		time.Sleep(time.Millisecond * 25)
+		// 3. Process 1 entry and starts processing the 2nd
+		consumerChForWaiting <- true
+
+		// 4. Cancel the pool
+		pool.Cancel()
+
 		go func() {
-			defer GinkgoRecover()
+			// 6. Tells the Consumer to finish processing the 2nd entry.
+			time.Sleep(time.Millisecond * 50)
 
-			// Waits more a little to ensure everything was cancelled.
-			time.Sleep(time.Millisecond * 25)
-			cond.Signal() // Unlocks the consumer
+			// Signal the Consumer to process the entry.
+			consumerChForWaiting <- true
 		}()
-		producer.Cancel()
 
-		Expect(called.count()).To(Equal(10))
+		// 5. Wait Consumers to finish.
+		pool.Wait()
+
+		// 7. Check if the 2nd entry was finished.
+		Expect(called.count()).To(Equal(30))
 		Expect(producer.Ch).To(BeClosed())
 		close(done)
 	})
+
 })
