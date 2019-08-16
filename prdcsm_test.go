@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/jamillosantos/macchiato"
-	"github.com/lab259/go-prdcsm/v2"
+	"github.com/lab259/go-prdcsm/v3"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/reporters"
 	"github.com/onsi/gomega"

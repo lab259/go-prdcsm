@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	. "github.com/lab259/go-prdcsm/v2"
+	. "github.com/lab259/go-prdcsm/v3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
