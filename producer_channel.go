@@ -21,9 +21,9 @@ func NewChannelProducer(cap int) *ChannelProducer {
 
 // Produce store data on the channel.
 func (producer *ChannelProducer) Produce(data interface{}) {
-	// producer.stopMutex.RLock()
+	producer.stopMutex.RLock()
 	producer.ch <- data
-	// producer.stopMutex.RUnlock()
+	producer.stopMutex.RUnlock()
 }
 
 // GetCh gets the next element of the channel.
