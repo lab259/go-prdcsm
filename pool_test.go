@@ -19,7 +19,7 @@ func (i *safecounter) inc(j ...int) {
 	if len(j) > 0 {
 		i.c += j[0]
 	} else {
-		i.c += 1
+		i.c++
 	}
 	i.Unlock()
 }
@@ -42,25 +42,25 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		producer.Ch <- 10
-		producer.Ch <- 20
-		producer.Ch <- 30
-		producer.Ch <- 40
-		producer.Ch <- 10
-		producer.Ch <- 20
-		producer.Ch <- 30
-		producer.Ch <- 40
-		producer.Ch <- 10
-		producer.Ch <- 20
-		producer.Ch <- 30
-		producer.Ch <- 40
+		producer.Produce(10)
+		producer.Produce(20)
+		producer.Produce(30)
+		producer.Produce(40)
+		producer.Produce(10)
+		producer.Produce(20)
+		producer.Produce(30)
+		producer.Produce(40)
+		producer.Produce(10)
+		producer.Produce(20)
+		producer.Produce(30)
+		producer.Produce(40)
 
 		go func() {
 			time.Sleep(time.Millisecond * 10)
 			Expect(pool.Stop()).To(Succeed())
 		}()
 
-		pool.Start()
+		Expect(pool.Start()).To(Succeed())
 
 		Expect(called.count()).To(Equal(300))
 		close(done)
@@ -78,20 +78,20 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		producer.Ch <- 10
-		producer.Ch <- 20
-		producer.Ch <- 30
-		producer.Ch <- 40
+		producer.Produce(10)
+		producer.Produce(20)
+		producer.Produce(30)
+		producer.Produce(40)
 
 		go func() {
 			time.Sleep(time.Millisecond * 10)
 			Expect(pool.Stop()).To(Succeed())
 		}()
 
-		pool.Start()
+		Expect(pool.Start()).To(Succeed())
 
 		Expect(called.count()).To(Equal(100))
-		Expect(producer.Ch).To(BeClosed())
+		Expect(producer.GetCh()).To(BeClosed())
 
 		Expect(called.count()).To(Equal(100))
 		close(done)
@@ -127,21 +127,21 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		producer.Ch <- 10
-		producer.Ch <- nil
-		producer.Ch <- 20
-		producer.Ch <- nil
-		producer.Ch <- 30
-		producer.Ch <- nil
-		producer.Ch <- 40
-		producer.Ch <- nil
+		producer.Produce(10)
+		producer.Produce(nil)
+		producer.Produce(20)
+		producer.Produce(nil)
+		producer.Produce(30)
+		producer.Produce(nil)
+		producer.Produce(40)
+		producer.Produce(nil)
 
 		go func() {
 			time.Sleep(time.Millisecond * 10)
 			Expect(pool.Stop()).To(Succeed())
 		}()
 
-		pool.Start()
+		Expect(pool.Start()).To(Succeed())
 
 		Expect(called.count()).To(Equal(100))
 		close(done)
@@ -158,16 +158,16 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		producer.Ch <- 10
-		producer.Ch <- 20
-		producer.Ch <- 30
-		producer.Ch <- 40
-		producer.Ch <- EOF
+		producer.Produce(10)
+		producer.Produce(20)
+		producer.Produce(30)
+		producer.Produce(40)
+		producer.Produce(EOF)
 
-		pool.Start()
+		Expect(pool.Start()).To(Succeed())
 
 		Expect(called.count()).To(Equal(100))
-		Expect(producer.Ch).To(BeClosed())
+		Expect(producer.GetCh()).To(BeClosed())
 		close(done)
 	})
 
@@ -182,23 +182,23 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		producer.Ch <- 10
-		producer.Ch <- 20
-		producer.Ch <- EOF
-		producer.Ch <- 30
-		producer.Ch <- 40
+		producer.Produce(10)
+		producer.Produce(20)
+		producer.Produce(EOF)
+		producer.Produce(30)
+		producer.Produce(40)
 
-		pool.Start()
+		Expect(pool.Start()).To(Succeed())
 
 		Expect(called.count()).To(Equal(30))
-		Expect(producer.Ch).To(HaveLen(2))
-		n, ok := <-producer.Ch
+		Expect(producer.GetCh()).To(HaveLen(2))
+		n, ok := <-producer.GetCh()
 		Expect(n).To(Equal(30))
 		Expect(ok).To(BeTrue())
-		n, ok = <-producer.Ch
+		n, ok = <-producer.GetCh()
 		Expect(n).To(Equal(40))
 		Expect(ok).To(BeTrue())
-		Expect(producer.Ch).To(BeClosed())
+		Expect(producer.GetCh()).To(BeClosed())
 		close(done)
 	})
 
@@ -230,10 +230,10 @@ var _ = Describe("Pool", func() {
 		})
 
 		// 2. Enqueue 4 entries
-		producer.Ch <- 10
-		producer.Ch <- 20
-		producer.Ch <- 30
-		producer.Ch <- 40
+		producer.Produce(10)
+		producer.Produce(20)
+		producer.Produce(30)
+		producer.Produce(40)
 
 		go func() {
 			defer GinkgoRecover()
@@ -252,10 +252,11 @@ var _ = Describe("Pool", func() {
 			// reading from the channel). This write will makes it proceed.
 			consumerChForWaiting <- true // Unlocks the consumer
 		}()
-		pool.Start()
+
+		Expect(pool.Start()).To(Succeed())
 
 		Expect(called.count()).To(Equal(10))
-		Expect(producer.Ch).To(BeClosed())
+		Expect(producer.GetCh()).To(BeClosed())
 		close(done)
 	})
 
@@ -287,10 +288,10 @@ var _ = Describe("Pool", func() {
 		})
 
 		// 2. Enqueue 4 entries
-		producer.Ch <- 10
-		producer.Ch <- 20
-		producer.Ch <- 30
-		producer.Ch <- 40
+		producer.Produce(10)
+		producer.Produce(20)
+		producer.Produce(30)
+		producer.Produce(40)
 
 		go func() {
 			// 3. Process 2 entries (Part 1)
@@ -311,11 +312,11 @@ var _ = Describe("Pool", func() {
 			consumerChForWaiting <- true
 		}()
 
-		pool.Start()
+		Expect(pool.Start()).To(Succeed())
 
 		// 5. Check if the only 1st and 2nd entry were processed.
 		Expect(called.count()).To(Equal(30))
-		Expect(producer.Ch).To(BeClosed())
+		Expect(producer.GetCh()).To(BeClosed())
 		close(done)
 	})
 
@@ -346,10 +347,10 @@ var _ = Describe("Pool", func() {
 
 		go func() {
 			// 2. Enqueue 4 entries
-			producer.Ch <- 10
-			producer.Ch <- 20
-			producer.Ch <- 30
-			producer.Ch <- 40
+			producer.Produce(10)
+			producer.Produce(20)
+			producer.Produce(30)
+			producer.Produce(40)
 
 			// Waits a little before asking the customer to proceed.
 			time.Sleep(time.Millisecond * 10)
@@ -361,13 +362,13 @@ var _ = Describe("Pool", func() {
 			pool.Cancel()
 		}()
 
-		pool.Start()
+		Expect(pool.Start()).To(Succeed())
 
 		// 5. Check if the none was processed.
 		Expect(called.count()).To(Equal(10))
-		Expect(producer.Ch).To(BeClosed())
+		Expect(producer.GetCh()).To(BeClosed())
 		close(done)
-	})
+	}, 5)
 
 	It("should wait the worker to finish after canceling", func(done Done) {
 		// # Summary (Not all steps are executed in order in the code. But the logic is this.)
@@ -399,10 +400,10 @@ var _ = Describe("Pool", func() {
 		})
 
 		// 2. Enqueue 4 entries
-		producer.Ch <- 10
-		producer.Ch <- 20
-		producer.Ch <- 30
-		producer.Ch <- 40
+		producer.Produce(10)
+		producer.Produce(20)
+		producer.Produce(30)
+		producer.Produce(40)
 
 		go pool.Start()
 
@@ -410,7 +411,7 @@ var _ = Describe("Pool", func() {
 		consumerChForWaiting <- true
 
 		// 4. Cancel the pool
-		pool.Cancel()
+		Expect(pool.Cancel()).To(Succeed())
 
 		go func() {
 			// 6. Tells the Consumer to finish processing the 2nd entry.
@@ -425,7 +426,7 @@ var _ = Describe("Pool", func() {
 
 		// 7. Check if the 2nd entry was finished.
 		Expect(called.count()).To(Equal(30))
-		Expect(producer.Ch).To(BeClosed())
+		Expect(producer.GetCh()).To(BeClosed())
 		close(done)
 	})
 

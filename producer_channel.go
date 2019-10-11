@@ -6,8 +6,8 @@ import "sync"
 // the most simplistic and, yet, powerful implementation.
 type ChannelProducer struct {
 	shutdown  chan struct{}
-	Ch        chan interface{}
-	stopMutex sync.Mutex
+	ch        chan interface{}
+	stopMutex sync.RWMutex
 	stopped   bool
 }
 
@@ -15,15 +15,23 @@ type ChannelProducer struct {
 func NewChannelProducer(cap int) *ChannelProducer {
 	return &ChannelProducer{
 		shutdown: make(chan struct{}),
-		Ch:       make(chan interface{}, cap),
+		ch:       make(chan interface{}, cap),
 	}
+}
+
+// Produce store data on the channel.
+func (producer *ChannelProducer) Produce(data interface{}) {
+	// producer.stopMutex.RLock()
+	producer.ch <- data
+	// producer.stopMutex.RUnlock()
 }
 
 // GetCh gets the next element of the channel.
 func (producer *ChannelProducer) GetCh() <-chan interface{} {
-	return producer.Ch
+	return producer.ch
 }
 
+// GetShutdown gets the shutdown element of the channel.
 func (producer *ChannelProducer) GetShutdown() <-chan struct{} {
 	return producer.shutdown
 }
@@ -37,14 +45,14 @@ func (producer *ChannelProducer) Stop() {
 	if producer.stopped {
 		return
 	}
-	close(producer.Ch)
+	close(producer.ch)
 	producer.stopped = true
 }
 
 // Cancel stops the producer
 func (producer *ChannelProducer) Cancel() {
 	producer.Stop()
-	for range producer.Ch {
+	for range producer.ch {
 		// Flush all messages added in the channel.
 	}
 }
