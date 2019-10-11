@@ -23,7 +23,7 @@ test-watch:
 
 coverage-ci:
 	@mkdir -p $(COVERDIR)
-	@ginkgo -r -covermode=count --cover --race --trace ./
+	@ginkgo -r -covermode=count --cover --trace ./
 	@echo "mode: count" > "${COVERAGEFILE}"
 	@find . -type f -name *.coverprofile -exec grep -h -v "^mode:" {} >> "${COVERAGEFILE}" \; -exec rm -f {} \;
 
