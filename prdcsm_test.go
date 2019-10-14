@@ -41,9 +41,9 @@ func BenchmarkPrdcsm(b *testing.B) {
 	})
 
 	for i := 0; i < b.N; i++ {
-		producer.Produce(1)
+		producer.Yield(1)
 	}
-	producer.Produce(prdcsm.EOF)
+	producer.Yield(prdcsm.EOF)
 
 	err := pool.Start()
 	if err != nil {

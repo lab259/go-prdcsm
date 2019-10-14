@@ -19,8 +19,8 @@ func NewChannelProducer(cap int) *ChannelProducer {
 	}
 }
 
-// Produce store data on the channel.
-func (producer *ChannelProducer) Produce(data interface{}) {
+// Yield sends data through the channel to be produced in the Pool.
+func (producer *ChannelProducer) Yield(data interface{}) {
 	producer.stopMutex.RLock()
 	producer.ch <- data
 	producer.stopMutex.RUnlock()

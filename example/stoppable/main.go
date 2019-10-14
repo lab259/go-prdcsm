@@ -31,7 +31,7 @@ func main() {
 	producerRunning := true
 	go func() {
 		for producerRunning {
-			producer.Produce(rand.Int())
+			producer.Yield(rand.Int())
 			time.Sleep(time.Millisecond * 10)
 		}
 	}()

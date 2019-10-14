@@ -22,15 +22,15 @@ var _ = Describe("Producer Channel", func() {
 			},
 		})
 
-		producer.Produce(10)
-		producer.Produce(20)
+		producer.Yield(10)
+		producer.Yield(20)
 
 		go func() {
 			Expect(pool.Stop()).To(Succeed())
 		}()
 
-		producer.Produce(30)
-		producer.Produce(40)
+		producer.Yield(30)
+		producer.Yield(40)
 
 		Expect(pool.Start()).To(Succeed())
 

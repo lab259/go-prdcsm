@@ -32,10 +32,10 @@ func main() {
 		s := time.Now()
 		for {
 			if time.Since(s) > time.Second {
-				producer.Produce(prdcsm.EOF)
+				producer.Yield(prdcsm.EOF)
 				return
 			}
-			producer.Produce(rand.Int())
+			producer.Yield(rand.Int())
 			time.Sleep(time.Millisecond * 10)
 		}
 	}()

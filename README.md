@@ -71,7 +71,7 @@ func main() {
 
     go func() {
         for {
-            producer.Ch <- rand.Int()
+            producer.Yield(rand.Int())
             time.Sleep(time.Millisecond * 10) // Simulate a "heavy" producer proccess.
         }
     }()

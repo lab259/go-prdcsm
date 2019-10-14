@@ -42,18 +42,18 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		producer.Produce(10)
-		producer.Produce(20)
-		producer.Produce(30)
-		producer.Produce(40)
-		producer.Produce(10)
-		producer.Produce(20)
-		producer.Produce(30)
-		producer.Produce(40)
-		producer.Produce(10)
-		producer.Produce(20)
-		producer.Produce(30)
-		producer.Produce(40)
+		producer.Yield(10)
+		producer.Yield(20)
+		producer.Yield(30)
+		producer.Yield(40)
+		producer.Yield(10)
+		producer.Yield(20)
+		producer.Yield(30)
+		producer.Yield(40)
+		producer.Yield(10)
+		producer.Yield(20)
+		producer.Yield(30)
+		producer.Yield(40)
 
 		go func() {
 			time.Sleep(time.Millisecond * 10)
@@ -78,10 +78,10 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		producer.Produce(10)
-		producer.Produce(20)
-		producer.Produce(30)
-		producer.Produce(40)
+		producer.Yield(10)
+		producer.Yield(20)
+		producer.Yield(30)
+		producer.Yield(40)
 
 		go func() {
 			time.Sleep(time.Millisecond * 10)
@@ -127,14 +127,14 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		producer.Produce(10)
-		producer.Produce(nil)
-		producer.Produce(20)
-		producer.Produce(nil)
-		producer.Produce(30)
-		producer.Produce(nil)
-		producer.Produce(40)
-		producer.Produce(nil)
+		producer.Yield(10)
+		producer.Yield(nil)
+		producer.Yield(20)
+		producer.Yield(nil)
+		producer.Yield(30)
+		producer.Yield(nil)
+		producer.Yield(40)
+		producer.Yield(nil)
 
 		go func() {
 			time.Sleep(time.Millisecond * 10)
@@ -158,11 +158,11 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		producer.Produce(10)
-		producer.Produce(20)
-		producer.Produce(30)
-		producer.Produce(40)
-		producer.Produce(EOF)
+		producer.Yield(10)
+		producer.Yield(20)
+		producer.Yield(30)
+		producer.Yield(40)
+		producer.Yield(EOF)
 
 		Expect(pool.Start()).To(Succeed())
 
@@ -182,11 +182,11 @@ var _ = Describe("Pool", func() {
 			},
 		})
 
-		producer.Produce(10)
-		producer.Produce(20)
-		producer.Produce(EOF)
-		producer.Produce(30)
-		producer.Produce(40)
+		producer.Yield(10)
+		producer.Yield(20)
+		producer.Yield(EOF)
+		producer.Yield(30)
+		producer.Yield(40)
 
 		Expect(pool.Start()).To(Succeed())
 
@@ -230,10 +230,10 @@ var _ = Describe("Pool", func() {
 		})
 
 		// 2. Enqueue 4 entries
-		producer.Produce(10)
-		producer.Produce(20)
-		producer.Produce(30)
-		producer.Produce(40)
+		producer.Yield(10)
+		producer.Yield(20)
+		producer.Yield(30)
+		producer.Yield(40)
 
 		go func() {
 			defer GinkgoRecover()
@@ -288,10 +288,10 @@ var _ = Describe("Pool", func() {
 		})
 
 		// 2. Enqueue 4 entries
-		producer.Produce(10)
-		producer.Produce(20)
-		producer.Produce(30)
-		producer.Produce(40)
+		producer.Yield(10)
+		producer.Yield(20)
+		producer.Yield(30)
+		producer.Yield(40)
 
 		go func() {
 			// 3. Process 2 entries (Part 1)
@@ -347,10 +347,10 @@ var _ = Describe("Pool", func() {
 
 		go func() {
 			// 2. Enqueue 4 entries
-			producer.Produce(10)
-			producer.Produce(20)
-			producer.Produce(30)
-			producer.Produce(40)
+			producer.Yield(10)
+			producer.Yield(20)
+			producer.Yield(30)
+			producer.Yield(40)
 
 			// Waits a little before asking the customer to proceed.
 			time.Sleep(time.Millisecond * 10)
@@ -400,10 +400,10 @@ var _ = Describe("Pool", func() {
 		})
 
 		// 2. Enqueue 4 entries
-		producer.Produce(10)
-		producer.Produce(20)
-		producer.Produce(30)
-		producer.Produce(40)
+		producer.Yield(10)
+		producer.Yield(20)
+		producer.Yield(30)
+		producer.Yield(40)
 
 		go pool.Start()
 
