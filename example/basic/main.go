@@ -30,7 +30,7 @@ func main() {
 
 	go func() {
 		for {
-			producer.Ch <- rand.Int()
+			producer.Yield(rand.Int())
 			time.Sleep(time.Millisecond * 10)
 		}
 	}()

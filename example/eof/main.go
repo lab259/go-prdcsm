@@ -15,9 +15,7 @@ func main() {
 	reader := bufio.NewReader(os.Stdin)
 	reader.ReadString('\n')
 
-	producer := &prdcsm.ChannelProducer{
-		Ch: make(chan interface{}, 50),
-	}
+	producer := prdcsm.NewChannelProducer(50)
 
 	i := 0
 	pool := prdcsm.NewPool(prdcsm.PoolConfig{
@@ -34,10 +32,10 @@ func main() {
 		s := time.Now()
 		for {
 			if time.Since(s) > time.Second {
-				producer.Ch <- prdcsm.EOF
+				producer.Yield(prdcsm.EOF)
 				return
 			}
-			producer.Ch <- rand.Int()
+			producer.Yield(rand.Int())
 			time.Sleep(time.Millisecond * 10)
 		}
 	}()
