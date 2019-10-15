@@ -15,7 +15,7 @@ test:
 ifdef CI
 	@ginkgo -r --randomizeAllSpecs --randomizeSuites --failOnPending --cover --trace --race --progress
 else
-	@ginkgo --failFast ./...
+	@ginkgo -r --randomizeAllSpecs --randomizeSuites --failOnPending --cover --trace --race --progress --failFast
 endif
 
 test-watch:

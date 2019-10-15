@@ -9,16 +9,40 @@ consumer and producer applications.
 ## Instalation
 
 ```bash
-$ go get github.com/lab259/go-prdcsm/v2
+$ go get github.com/lab259/go-prdcsm/v3
 ```
 
-## Usage
+## Getting started
+
+`prdcsm` needs 3 things:
+1. A producer
+
+A producer is a structure that will generate the data that will be processed by
+the consumers. It will keep the information about how much data it can allocate
+and is responsible for transferring the information through all consumers that
+might be running (the default implementation makes use of channels). A pool will
+have only one producer (at least for now).
+
+2. A consumer
+
+A consumer is a function that will be responsible for receiving the information
+from a producer and process it. Usually, the pool will have many consumers.
+
+3. The pool
+
+The pool works like a manager that starts the consumers and keeps forwarding for
+them all work done by the producer.
+
+---
+
+In the next example you will be able to see all three main components working
+together.
 
 ```go
 package main
 
 import (
-    "github.com/lab259/go-prdcsm/v2"
+    "github.com/lab259/go-prdcsm/v3"
     "time"
     "math/rand"
     "bufio"

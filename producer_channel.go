@@ -1,29 +1,50 @@
 package prdcsm
 
+import "sync"
+
 // ChannelProducer implements using a channel as source of a producer. This is
 // the most simplistic and, yet, powerful implementation.
 type ChannelProducer struct {
-	Ch chan interface{}
+	shutdown  chan struct{}
+	Ch        chan interface{}
+	stopMutex sync.Mutex
+	stopped   bool
 }
 
 // NewChannelProducer returns a new ChannelProducer
 func NewChannelProducer(cap int) *ChannelProducer {
 	return &ChannelProducer{
-		Ch: make(chan interface{}, cap),
+		shutdown: make(chan struct{}),
+		Ch:       make(chan interface{}, cap),
 	}
 }
 
-// Produce gets the next element of the channel.
-func (producer *ChannelProducer) Produce() interface{} {
-	select {
-	case got := <-producer.Ch:
-		return got
-	default:
-		return nil
-	}
+// GetCh gets the next element of the channel.
+func (producer *ChannelProducer) GetCh() <-chan interface{} {
+	return producer.Ch
 }
 
-// Stop stops the producer closing the channel.
+func (producer *ChannelProducer) GetShutdown() <-chan struct{} {
+	return producer.shutdown
+}
+
+// Stop stops the producer closing the channel but keep all added to the
+// channel.
 func (producer *ChannelProducer) Stop() {
+	producer.stopMutex.Lock()
+	defer producer.stopMutex.Unlock()
+
+	if producer.stopped {
+		return
+	}
 	close(producer.Ch)
+	producer.stopped = true
+}
+
+// Cancel stops the producer
+func (producer *ChannelProducer) Cancel() {
+	producer.Stop()
+	for range producer.Ch {
+		// Flush all messages added in the channel.
+	}
 }
